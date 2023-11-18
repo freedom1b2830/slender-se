@@ -1,0 +1,6 @@
+template(`mcsm',`
+	gen_require(`
+		type init_t;
+		role system_r;
+	')
+')

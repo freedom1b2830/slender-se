@@ -1,0 +1,16 @@
+# Systemd unit file
+/opt/mcsmanager(/.*)?																							gen_context(system_u:object_r:mcsmanager_opt_t,s0)
+/opt/mcsmanager/daemon(/.*)?																					gen_context(system_u:object_r:mcsmanager_daemon_opt_t,s0)
+/opt/mcsmanager/daemon/logs(/.*)?																				gen_context(system_u:object_r:mcsmanager_daemon_logs_t,s0)
+/opt/mcsmanager/daemon/data/InstanceData(/.*)?																	gen_context(system_u:object_r:mcsmanager_daemon_instances_t,s0)
+/opt/mcsmanager/daemon/data/InstanceLog(/.*)?																	gen_context(system_u:object_r:mcsmanager_daemon_instances_logs_t,s0)
+
+/opt/mcsmanager/daemon/data/InstanceData/03db0e58c8224d78bbc55a531e5ed5ea/ROOT/APP							--	gen_context(system_u:object_r:app_changeuid_exec_t,s0)
+/opt/mcsmanager/daemon/data/InstanceData/03db0e58c8224d78bbc55a531e5ed5ea(/.*)?									gen_context(system_u:object_r:minecraft_server_dir_t,s0)
+
+/opt/mcsmanager/web(/.*)?																						gen_context(system_u:object_r:mcsmanager_web_opt_t,s0)
+/opt/mcsmanager/web/logs(/.*)?																					gen_context(system_u:object_r:mcsmanager_web_log_t,s0)
+
+/etc/systemd/system/mcsm-web\.service																		--	gen_context(system_u:object_r:mcsm_web_unit_t,s0)
+/etc/systemd/system/mcsm-daemon\.service																	--	gen_context(system_u:object_r:mcsm_daemon_unit_t,s0)
+

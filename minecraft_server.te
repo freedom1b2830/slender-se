@@ -1,0 +1,241 @@
+policy_module(minecraft_server,1.0)
+
+
+################################################
+#
+# ФАЙЛЫ
+#
+
+type mcsmanager_opt_t;
+type mcsmanager_daemon_opt_t;
+type mcsmanager_daemon_logs_t;
+type mcsmanager_daemon_instances_t;
+type mcsmanager_daemon_instances_logs_t;
+type app_changeuid_exec_t;
+type minecraft_server_dir_t;
+type mcsmanager_web_opt_t;
+type mcsmanager_web_log_t;
+
+files_type(mcsmanager_opt_t)
+files_type(mcsmanager_daemon_opt_t)
+files_type(mcsmanager_daemon_logs_t)
+files_type(mcsmanager_daemon_instances_t)
+files_type(mcsmanager_daemon_instances_logs_t)
+files_type(app_changeuid_exec_t)
+files_type(minecraft_server_dir_t)
+files_type(mcsmanager_web_opt_t)
+files_type(mcsmanager_web_log_t)
+
+
+type mcsm_daemon_exec_t;
+type mcsm_web_exec_t;
+
+type minecraft_server_exec_t;
+
+type mcsm_daemon_unit_t;
+type mcsm_web_unit_t;
+init_unit_file(mcsm_web_unit_t)
+init_unit_file(mcsm_daemon_unit_t)
+
+#
+# ФАЙЛЫ
+#
+################################################
+
+
+
+
+type app_changeuid_t;
+domain_type(app_changeuid_t)
+################################################
+#
+# Домены
+#
+type mcsm_daemon_t;
+type mcsm_web_t;
+
+type minecraft_server_t;
+type minecraft_server_sudo_t;
+
+init_daemon_domain(mcsm_daemon_t, mcsm_daemon_exec_t)
+init_daemon_domain(mcsm_web_t, mcsm_web_exec_t)
+
+init_daemon_domain(minecraft_server_t, minecraft_server_exec_t)
+domain_type(minecraft_server_sudo_t)
+
+
+
+#######################################
+#
+# mcsm-manager
+#
+# WEB
+# SELinuxContext=system_u:system_r:mcsm_web_t:s0
+
+
+
+allow mcsm_web_t self:tcp_socket { read write };
+
+optional_policy(`
+	gen_require(`
+		type proc_t;
+	')
+	allow mcsm_web_t proc_t:file { getattr open read };
+	allow mcsm_daemon_t proc_t:file { getattr open read };
+')
+optional_policy(`
+	gen_require(`
+		type cgroup_t;
+	')
+	allow minecraft_server_t cgroup_t:file { getattr open read };
+')
+
+
+# SELinuxContext=system_u:system_r:mcsm_daemon_t:s0
+
+
+
+
+#######################################
+#
+# свой sudo домен
+#
+auth_use_pam(minecraft_server_sudo_t)
+iptables_domtrans(minecraft_server_sudo_t)
+
+
+
+
+#######################################
+#
+# MINECRAFT
+#
+
+attribute_role						minecraft_server_roles;
+roleattribute	system_r			minecraft_server_roles;
+
+
+
+
+allow minecraft_server_t self:process { execmem getsched signal };
+allow minecraft_server_t self:tcp_socket { connect create getopt shutdown accept getattr read setopt write };
+allow minecraft_server_t self:udp_socket { connect create getattr setopt read write };
+allow minecraft_server_t self:netlink_route_socket { bind create getattr nlmsg_read read write };
+
+
+corenet_tcp_connect_http_port(minecraft_server_t)
+files_read_etc_files(minecraft_server_t)
+files_read_etc_symlinks(minecraft_server_t)
+sysnet_read_config(minecraft_server_t)
+systemd_read_resolved_runtime(minecraft_server_t)
+
+manage_files_pattern(minecraft_server_t, minecraft_server_dir_t,minecraft_server_dir_t)
+manage_dirs_pattern(minecraft_server_t, minecraft_server_dir_t,minecraft_server_dir_t)
+
+allow minecraft_server_t mcsmanager_daemon_instances_t:dir { getattr search };
+allow minecraft_server_t mcsmanager_daemon_opt_t:dir { getattr search };
+allow minecraft_server_t mcsmanager_opt_t:dir { getattr search };
+
+
+allow minecraft_server_t mcsm_daemon_t:fd use;
+allow minecraft_server_t mcsm_daemon_t:unix_stream_socket write;
+
+manage_files_pattern(mcsm_daemon_t, mcsmanager_daemon_instances_logs_t,mcsmanager_daemon_instances_logs_t)
+manage_dirs_pattern(mcsm_daemon_t, mcsmanager_daemon_instances_logs_t,mcsmanager_daemon_instances_logs_t)
+
+
+manage_files_pattern(mcsm_daemon_t, mcsmanager_daemon_logs_t,mcsmanager_daemon_logs_t)
+manage_dirs_pattern(mcsm_daemon_t, mcsmanager_daemon_logs_t,mcsmanager_daemon_logs_t)
+
+
+
+
+
+allow mcsm_daemon_t mcsmanager_daemon_opt_t:dir search;
+allow mcsm_daemon_t self:process execmem;
+allow mcsm_daemon_t self:tcp_socket { read write };
+
+
+#sudo
+optional_policy(`
+	gen_require(`
+		type sudo_exec_t;
+	')
+	domtrans_pattern(minecraft_server_t, sudo_exec_t, minecraft_server_sudo_t)
+')
+
+#
+# MINECRAFT
+#
+#######################################
+
+
+
+
+
+
+
+role								minecraft_server_roles	types minecraft_server_t;
+role								minecraft_server_roles	types minecraft_server_sudo_t;
+
+
+
+
+
+
+
+
+#######################################
+#
+# app_changeuid
+#
+# mcsm->java server (root:root->service_minecraft:service_minecraft)
+#
+
+
+
+attribute_role						app_changeuid_roles;
+roleattribute	system_r			app_changeuid_roles;
+role								app_changeuid_roles	types app_changeuid_t;
+
+#search java
+corecmd_search_bin(app_changeuid_t)
+
+# root:root->service_minecraft:service_minecraft
+allow app_changeuid_t self:capability { setgid setuid };
+
+#NSS
+files_read_etc_files(app_changeuid_t)
+files_read_etc_symlinks(app_changeuid_t)
+
+
+allow app_changeuid_t app_changeuid_exec_t:file { entrypoint execute map read };
+allow app_changeuid_t mcsm_daemon_t:unix_stream_socket { getattr read write };
+
+
+#mcsm-daemon -> app_changeuid_t
+
+domtrans_pattern(mcsm_daemon_t, app_changeuid_exec_t, app_changeuid_t)
+
+#app_changeuid_t -> minecraft_server_t
+optional_policy(`
+	gen_require(`
+		type java_exec_t;
+	')
+	domtrans_pattern(app_changeuid_t, java_exec_t, minecraft_server_t)
+')
+
+#
+# app_changeuid
+#
+#######################################
+
+
+
+optional_policy(`
+	gen_require(`
+		type init_t;
+		role system_r;
+	')
+	mcsm(init_t,system_r)
+')
